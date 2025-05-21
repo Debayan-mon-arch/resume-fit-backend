@@ -7,13 +7,18 @@ CORS(app)
 
 # Utility to extract text from a file
 def extract_text(file_storage):
-    text = ""
-    if file_storage:
-        doc = fitz.open(stream=file_storage.read(), filetype="pdf")
-        for page in doc:
-            text += page.get_text()
-        doc.close()
-    return text.lower()
+    try:
+        text = ""
+        if file_storage:
+            file_storage.stream.seek(0)  # Ensure stream is at beginning
+            doc = fitz.open(stream=file_storage.read(), filetype="pdf")
+            for page in doc:
+                text += page.get_text()
+            doc.close()
+        return text.lower()
+    except Exception as e:
+        print(f"Failed to extract text: {e}")
+        return ""
 
 # Matching logic
 def calculate_match(jd, cv):
@@ -70,46 +75,54 @@ def calculate_match(jd, cv):
 # API route
 @app.route('/parse', methods=['POST'])
 def parse():
-    jd_file = request.files.get('jd')
-    cv_files = request.files.getlist('cvs')
+    try:
+        jd_file = request.files.get('jd')
+        cv_files = request.files.getlist('cvs')
 
-    jd_text = extract_text(jd_file)
-    cv_texts = [extract_text(f) for f in cv_files]
+        if not jd_file or not cv_files:
+            return jsonify({"error": "JD and at least one CV are required."}), 400
 
-    # Optional fields
-    jd_extras = {
-        "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
-        "joining": request.form.get("joining"),
-        "age": int(request.form.get("age")) if request.form.get("age") else None,
-        "gender": request.form.get("gender"),
-        "graduate": request.form.get("graduate")
-    }
+        jd_text = extract_text(jd_file)
+        cv_texts = [extract_text(f) for f in cv_files]
 
-    jd = {
-        "skills": jd_text.split(),
-        "domain": jd_text.split(),
-        "tools": jd_text.split(),
-        "education": jd_text.split(),
-        **jd_extras
-    }
-
-    results = []
-    for i, text in enumerate(cv_texts):
-        cv = {
-            "skills": text.split(),
-            "domain": text.split(),
-            "tools": text.split(),
-            "education": text.split(),
-            **jd_extras  # For now using JD extras, can be changed to separate CV-level values
+        # Optional fields
+        jd_extras = {
+            "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
+            "joining": request.form.get("joining"),
+            "age": int(request.form.get("age")) if request.form.get("age") else None,
+            "gender": request.form.get("gender"),
+            "graduate": request.form.get("graduate")
         }
-        score, label = calculate_match(jd, cv)
-        results.append({
-            "cv": cv_files[i].filename,
-            "score": score,
-            "label": label
-        })
 
-    return jsonify({"results": results})
+        jd = {
+            "skills": jd_text.split(","),
+            "domain": jd_text.split(","),
+            "tools": jd_text.split(","),
+            "education": jd_text.split(","),
+            **jd_extras
+        }
+
+        results = []
+        for i, text in enumerate(cv_texts):
+            cv = {
+                "skills": text.split(","),
+                "domain": text.split(","),
+                "tools": text.split(","),
+                "education": text.split(","),
+                **jd_extras  # For now using JD extras, can be customized per CV later
+            }
+            score, label = calculate_match(jd, cv)
+            results.append({
+                "cv": cv_files[i].filename,
+                "score": score,
+                "label": label
+            })
+
+        return jsonify({"results": results})
+
+    except Exception as e:
+        print(f"Error in /parse: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 # Render entry point
 if __name__ == '__main__':
