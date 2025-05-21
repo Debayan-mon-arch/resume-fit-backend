@@ -1,58 +1,15 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from parser_utils import extract_text
-import re
+from parser_utils import extract_text, get_profile_keywords, extract_keywords_from_text
 
 app = Flask(__name__)
 CORS(app)
 
-# --- Static profile keyword templates ---
-PROFILE_TEMPLATES = {
-    "analyst": {
-        "skills": ["excel", "sql", "data analysis", "communication"],
-        "domain": ["analytics", "reporting"],
-        "tools": ["tableau", "power bi"],
-        "education": ["bachelor", "mba"]
-    },
-    "sde": {
-        "skills": ["python", "java", "c++", "data structures"],
-        "domain": ["backend", "frontend", "devops"],
-        "tools": ["git", "docker", "vscode"],
-        "education": ["btech", "mtech"]
-    },
-    "hr": {
-        "skills": ["recruitment", "employee relations", "communication"],
-        "domain": ["human resources", "people operations"],
-        "tools": ["excel", "workday"],
-        "education": ["mba", "pgdm"]
-    },
-    "marketing": {
-        "skills": ["digital marketing", "seo", "content creation"],
-        "domain": ["branding", "social media"],
-        "tools": ["canva", "google analytics"],
-        "education": ["bba", "mba"]
-    }
-}
-
-def clean_jd_text(text):
-    keywords = ["responsibilities", "role", "job description", "what you'll do", "key deliverables", "position"]
-    for kw in keywords:
-        idx = text.lower().find(kw)
-        if idx != -1:
-            return text[idx:]
-    return text
-
-def split_keywords(text):
-    return [kw.strip().lower() for kw in re.split(r"[,\n;/\-–\| ]+", text) if kw.strip()]
-
-# --- Matching logic ---
+# --- Scoring logic ---
 def calculate_match(jd, cv, priority_keywords=None):
-    if priority_keywords is None:
-        priority_keywords = []
-
     base_weights = {
-        "skills": 4,
-        "domain": 3,
+        "skills": 3,
+        "domain": 2,
         "tools": 2,
         "education": 1,
         "experience": 0.5,
@@ -74,31 +31,30 @@ def calculate_match(jd, cv, priority_keywords=None):
             continue
 
         if isinstance(jd_val, list) and isinstance(cv_val, list):
-            jd_set = set(map(str.lower, jd_val))
-            cv_set = set(map(str.lower, cv_val))
+            jd_set = set(jd_val)
+            cv_set = set(cv_val)
             matches = {j for j in jd_set if any(j in c or c in j for c in cv_set)}
-            matched_fields[field] = list(matches)
             match_ratio = len(matches) / len(jd_set) if jd_set else 0
-
+            matched_fields[field] = list(matches)
         elif isinstance(jd_val, int) and isinstance(cv_val, int):
             match_ratio = 1 if abs(jd_val - cv_val) <= 2 else 0
-            matched_fields[field] = [str(cv_val)] if match_ratio == 1 else []
-
+            matched_fields[field] = [str(cv_val)] if match_ratio else []
         else:
             match_ratio = 1 if str(jd_val).lower() == str(cv_val).lower() else 0
-            matched_fields[field] = [str(cv_val)] if match_ratio == 1 else []
+            matched_fields[field] = [str(cv_val)] if match_ratio else []
 
         score += match_ratio * weight
         total_weight += weight
 
-    # 🔥 Match priority keywords
-    cv_blob = " ".join(cv.get(f, "") if isinstance(cv.get(f), str) else " ".join(cv.get(f, [])) for f in ["skills", "domain", "tools", "education"])
-    matched_priority = [kw for kw in priority_keywords if kw.lower() in cv_blob]
-    matched_fields["prioritySkill"] = matched_priority
-
-    if matched_priority:
-        score += 3 * len(matched_priority)
-        total_weight += 3 * len(matched_priority)
+    # --- Priority skill boost ---
+    matched_priority = []
+    if priority_keywords:
+        cv_blob = " ".join(" ".join(cv.get(f, [])) if isinstance(cv.get(f), list) else str(cv.get(f)) for f in jd)
+        for kw in priority_keywords:
+            if kw in cv_blob:
+                score += 1.5  # moderate boost
+                total_weight += 1.5
+                matched_priority.append(kw)
 
     final_score = round((score / total_weight) * 100) if total_weight else 0
 
@@ -111,31 +67,29 @@ def calculate_match(jd, cv, priority_keywords=None):
     else:
         label = "❌ Not Fit"
 
-    return final_score, label, matched_fields
+    return final_score, label, matched_priority
 
 # --- API route ---
 @app.route('/parse', methods=['POST'])
 def parse():
     try:
-        profile = request.form.get("profile", "").lower()
-        if profile not in PROFILE_TEMPLATES:
-            return jsonify({"error": "Invalid profile type"}), 400
-
+        dept = request.form.get("dept", "").lower()
+        level = request.form.get("level", "").upper()
         jd_file = request.files.get("jd")
         cv_files = request.files.getlist("cvs")
-        if not jd_file or not cv_files:
-            return jsonify({"error": "JD and CV files are required"}), 400
 
-        jd_raw = extract_text(jd_file)
-        jd_clean = clean_jd_text(jd_raw)
-        jd_keywords = split_keywords(jd_clean)
-        profile_keywords = PROFILE_TEMPLATES[profile]
+        if not jd_file or not cv_files:
+            return jsonify({"error": "JD and CVs required"}), 400
+
+        jd_text = extract_text(jd_file)
+        jd_extracted = extract_keywords_from_text(jd_text)
+        profile_keywords = get_profile_keywords(dept, level)
 
         jd = {
-            "skills": profile_keywords["skills"] + jd_keywords,
-            "domain": profile_keywords["domain"] + jd_keywords,
-            "tools": profile_keywords["tools"] + jd_keywords,
-            "education": profile_keywords["education"] + jd_keywords,
+            "skills": profile_keywords["skills"] + jd_extracted,
+            "domain": profile_keywords["domain"] + jd_extracted,
+            "tools": profile_keywords["tools"] + jd_extracted,
+            "education": profile_keywords["education"] + jd_extracted,
             "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
             "joining": request.form.get("joining"),
             "age": int(request.form.get("age")) if request.form.get("age") else None,
@@ -144,12 +98,12 @@ def parse():
         }
 
         priority_raw = request.form.get("prioritySkill", "")
-        priority_keywords = [kw.strip().lower() for kw in re.split(r"[,\n;/\-–\|]+", priority_raw) if kw.strip()]
+        priority_keywords = [p.strip().lower() for p in priority_raw.split(",") if p.strip()]
 
         results = []
         for file in cv_files:
             cv_text = extract_text(file)
-            cv_keywords = split_keywords(cv_text)
+            cv_keywords = extract_keywords_from_text(cv_text)
             cv = {
                 "skills": cv_keywords,
                 "domain": cv_keywords,
@@ -162,19 +116,18 @@ def parse():
                 "graduate": jd["graduate"]
             }
 
-            score, label, matched = calculate_match(jd, cv, priority_keywords)
+            score, label, matched_priority = calculate_match(jd, cv, priority_keywords)
             results.append({
                 "cv": file.filename,
                 "score": score,
                 "label": label,
-                "matches": matched
+                "matched_priority": ", ".join(matched_priority) if matched_priority else ""
             })
 
         return jsonify({"results": results})
-
     except Exception as e:
-        print("Error in /parse:", e)
+        print("Error:", e)
         return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host="0.0.0.0", port=10000)
