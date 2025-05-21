@@ -1,8 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import fitz  # PyMuPDF
 
 app = Flask(__name__)
 CORS(app)
+
+# Utility to extract text from a file
+def extract_text(file_storage):
+    text = ""
+    if file_storage:
+        doc = fitz.open(stream=file_storage.read(), filetype="pdf")
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+    return text.lower()
 
 # Matching logic
 def calculate_match(jd, cv):
@@ -25,22 +36,18 @@ def calculate_match(jd, cv):
         jd_val = jd.get(field)
         cv_val = cv.get(field)
 
-        # Skip if either is missing
         if jd_val in [None, "", []] or cv_val in [None, "", []]:
             continue
 
-        # For list-based fields
         if isinstance(jd_val, list) and isinstance(cv_val, list):
-            jd_set = set(map(str.lower, jd_val))
-            cv_set = set(map(str.lower, cv_val))
+            jd_set = set(map(str.strip, map(str.lower, jd_val)))
+            cv_set = set(map(str.strip, map(str.lower, cv_val)))
             matches = jd_set & cv_set
             match_ratio = len(matches) / len(jd_set) if jd_set else 0
 
-        # For numeric fields like experience and age
         elif isinstance(jd_val, int) and isinstance(cv_val, int):
             match_ratio = 1 if abs(jd_val - cv_val) <= 2 else 0
 
-        # For exact match text fields
         else:
             match_ratio = 1 if str(jd_val).lower() == str(cv_val).lower() else 0
 
@@ -60,29 +67,50 @@ def calculate_match(jd, cv):
 
     return final_score, label
 
-
-# API endpoint for the frontend
+# API route
 @app.route('/parse', methods=['POST'])
 def parse():
-    data = request.get_json()
-    jd = data.get('jd')
-    cvs = data.get('cvs')
+    jd_file = request.files.get('jd')
+    cv_files = request.files.getlist('cvs')
 
-    if not jd or not cvs:
-        return jsonify({"error": "Missing JD or CVs"}), 400
+    jd_text = extract_text(jd_file)
+    cv_texts = [extract_text(f) for f in cv_files]
+
+    # Optional fields
+    jd_extras = {
+        "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
+        "joining": request.form.get("joining"),
+        "age": int(request.form.get("age")) if request.form.get("age") else None,
+        "gender": request.form.get("gender"),
+        "graduate": request.form.get("graduate")
+    }
+
+    jd = {
+        "skills": jd_text.split(),
+        "domain": jd_text.split(),
+        "tools": jd_text.split(),
+        "education": jd_text.split(),
+        **jd_extras
+    }
 
     results = []
-    for cv in cvs:
+    for i, text in enumerate(cv_texts):
+        cv = {
+            "skills": text.split(),
+            "domain": text.split(),
+            "tools": text.split(),
+            "education": text.split(),
+            **jd_extras  # For now using JD extras, can be changed to separate CV-level values
+        }
         score, label = calculate_match(jd, cv)
         results.append({
-            "cv_name": cv.get("name", "Candidate"),
-            "match": score,
+            "cv": cv_files[i].filename,
+            "score": score,
             "label": label
         })
 
-    return jsonify(results)
+    return jsonify({"results": results})
 
-
-# Start the server (important for Render)
+# Render entry point
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
