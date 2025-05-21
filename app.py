@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from parser_utils import extract_text  # Unified .pdf/.docx parser
+from parser_utils import extract_text
 import re
 
 app = Flask(__name__)
 CORS(app)
 
-# Profile templates for matching
+# Profile templates
 PROFILE_TEMPLATES = {
     "analyst": {
         "skills": ["excel", "sql", "data analysis", "communication"],
@@ -34,11 +34,17 @@ PROFILE_TEMPLATES = {
     }
 }
 
-# Smart tokenizer using regex
+def clean_jd_text(text):
+    keywords = ["responsibilities", "role", "job description", "what you'll do", "key deliverables", "position"]
+    for kw in keywords:
+        idx = text.lower().find(kw)
+        if idx != -1:
+            return text[idx:]
+    return text
+
 def split_keywords(text):
     return [kw.strip().lower() for kw in re.split(r"[,\n;/\-–\| ]+", text) if kw.strip()]
 
-# Match logic with weights
 def calculate_match(jd, cv):
     base_weights = {
         "skills": 3,
@@ -90,7 +96,6 @@ def calculate_match(jd, cv):
 
     return final_score, label
 
-# /parse endpoint
 @app.route('/parse', methods=['POST'])
 def parse():
     try:
@@ -103,12 +108,11 @@ def parse():
         if not jd_file or not cv_files:
             return jsonify({"error": "JD and CVs are required."}), 400
 
-        # Extract keywords from profile template
         profile_keywords = PROFILE_TEMPLATES[profile.lower()]
-        jd_text = extract_text(jd_file)
-        jd_keywords = split_keywords(jd_text)
+        jd_raw = extract_text(jd_file)
+        jd_clean = clean_jd_text(jd_raw)
+        jd_keywords = split_keywords(jd_clean)
 
-        # Merge JD and profile fields
         jd = {
             "skills": profile_keywords["skills"] + jd_keywords,
             "domain": profile_keywords["domain"] + jd_keywords,
@@ -116,7 +120,6 @@ def parse():
             "education": profile_keywords["education"] + jd_keywords
         }
 
-        # Optional fields
         jd.update({
             "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
             "joining": request.form.get("joining"),
@@ -155,6 +158,5 @@ def parse():
         print(f"Error in /parse: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-# Run on Render
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
