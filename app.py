@@ -1,26 +1,44 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import fitz  # PyMuPDF
+from parser_utils import extract_text  # Unified .pdf/.docx parser
+import re
 
 app = Flask(__name__)
 CORS(app)
 
-# Utility to extract text from a file
-def extract_text(file_storage):
-    try:
-        text = ""
-        if file_storage:
-            file_storage.stream.seek(0)  # Ensure stream is at beginning
-            doc = fitz.open(stream=file_storage.read(), filetype="pdf")
-            for page in doc:
-                text += page.get_text()
-            doc.close()
-        return text.lower()
-    except Exception as e:
-        print(f"Failed to extract text: {e}")
-        return ""
+# Profile templates for matching
+PROFILE_TEMPLATES = {
+    "analyst": {
+        "skills": ["excel", "sql", "data analysis", "communication"],
+        "domain": ["analytics", "reporting"],
+        "tools": ["tableau", "power bi"],
+        "education": ["bachelor", "mba"]
+    },
+    "sde": {
+        "skills": ["python", "java", "c++", "data structures"],
+        "domain": ["backend", "frontend", "devops"],
+        "tools": ["git", "docker", "vscode"],
+        "education": ["btech", "mtech"]
+    },
+    "hr": {
+        "skills": ["recruitment", "employee relations", "communication"],
+        "domain": ["human resources", "people operations"],
+        "tools": ["excel", "workday"],
+        "education": ["mba", "pgdm"]
+    },
+    "marketing": {
+        "skills": ["digital marketing", "seo", "content creation"],
+        "domain": ["branding", "social media"],
+        "tools": ["canva", "google analytics"],
+        "education": ["bba", "mba"]
+    }
+}
 
-# Matching logic
+# Smart tokenizer using regex
+def split_keywords(text):
+    return [kw.strip().lower() for kw in re.split(r"[,\n;/\-–\| ]+", text) if kw.strip()]
+
+# Match logic with weights
 def calculate_match(jd, cv):
     base_weights = {
         "skills": 3,
@@ -45,8 +63,8 @@ def calculate_match(jd, cv):
             continue
 
         if isinstance(jd_val, list) and isinstance(cv_val, list):
-            jd_set = set(map(str.strip, map(str.lower, jd_val)))
-            cv_set = set(map(str.strip, map(str.lower, cv_val)))
+            jd_set = set(map(str.lower, jd_val))
+            cv_set = set(map(str.lower, cv_val))
             matches = jd_set & cv_set
             match_ratio = len(matches) / len(jd_set) if jd_set else 0
 
@@ -72,48 +90,61 @@ def calculate_match(jd, cv):
 
     return final_score, label
 
-# API route
+# /parse endpoint
 @app.route('/parse', methods=['POST'])
 def parse():
     try:
+        profile = request.form.get("profile")
+        if not profile or profile.lower() not in PROFILE_TEMPLATES:
+            return jsonify({"error": "Invalid or missing profile type."}), 400
+
         jd_file = request.files.get('jd')
         cv_files = request.files.getlist('cvs')
-
         if not jd_file or not cv_files:
-            return jsonify({"error": "JD and at least one CV are required."}), 400
+            return jsonify({"error": "JD and CVs are required."}), 400
 
+        # Extract keywords from profile template
+        profile_keywords = PROFILE_TEMPLATES[profile.lower()]
         jd_text = extract_text(jd_file)
-        cv_texts = [extract_text(f) for f in cv_files]
+        jd_keywords = split_keywords(jd_text)
+
+        # Merge JD and profile fields
+        jd = {
+            "skills": profile_keywords["skills"] + jd_keywords,
+            "domain": profile_keywords["domain"] + jd_keywords,
+            "tools": profile_keywords["tools"] + jd_keywords,
+            "education": profile_keywords["education"] + jd_keywords
+        }
 
         # Optional fields
-        jd_extras = {
+        jd.update({
             "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
             "joining": request.form.get("joining"),
             "age": int(request.form.get("age")) if request.form.get("age") else None,
             "gender": request.form.get("gender"),
             "graduate": request.form.get("graduate")
-        }
-
-        jd = {
-            "skills": jd_text.split(","),
-            "domain": jd_text.split(","),
-            "tools": jd_text.split(","),
-            "education": jd_text.split(","),
-            **jd_extras
-        }
+        })
 
         results = []
-        for i, text in enumerate(cv_texts):
+        for file in cv_files:
+            cv_text = extract_text(file)
+            cv_keywords = split_keywords(cv_text)
+
             cv = {
-                "skills": text.split(","),
-                "domain": text.split(","),
-                "tools": text.split(","),
-                "education": text.split(","),
-                **jd_extras  # For now using JD extras, can be customized per CV later
+                "skills": cv_keywords,
+                "domain": cv_keywords,
+                "tools": cv_keywords,
+                "education": cv_keywords,
+                "experience": jd["experience"],
+                "joining": jd["joining"],
+                "age": jd["age"],
+                "gender": jd["gender"],
+                "graduate": jd["graduate"]
             }
+
             score, label = calculate_match(jd, cv)
             results.append({
-                "cv": cv_files[i].filename,
+                "cv": file.filename,
                 "score": score,
                 "label": label
             })
@@ -124,6 +155,6 @@ def parse():
         print(f"Error in /parse: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-# Render entry point
+# Run on Render
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
