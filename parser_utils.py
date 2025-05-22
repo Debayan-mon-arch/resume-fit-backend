@@ -32,52 +32,81 @@ SYNONYMS = {
     "employee relations": ["grievance", "hrbp"],
     "content creation": ["copywriting", "social content", "posts", "reels"],
     "performance marketing": ["paid ads", "ppc", "media buying"],
-    "campaign execution": ["campaign mgmt", "brand activation"]
+    "campaign execution": ["campaign mgmt", "brand activation"],
+    "compliance": ["risk", "regulations"],
+    "strategy": ["strategic", "planning"],
+    "analytics": ["data", "dashboards", "metrics"],
+    "finance": ["accounting", "p&l", "budgeting"],
+    "sales": ["targets", "pipeline", "conversion", "revenue"],
+    "hr": ["onboarding", "exit", "retention", "training"],
+    "technology": ["devops", "infra", "architecture"],
+    "b2b": ["enterprise", "partner", "client"],
+    "b2c": ["consumer", "customer", "d2c"],
+    "supply": ["logistics", "inventory", "delivery"],
+    "renewal": ["retention", "follow-up"],
+    "marketing": ["campaign", "branding", "seo"],
+    "product": ["ux", "roadmap", "feature"]
 }
 
-# --- Keyword dictionary by (Dept, Level) ---
+# --- Department + Level mapping to core keywords ---
 ROLE_KEYWORDS = {
-    ("tech", "L3"): {
-        "skills": ["python", "java", "data structures", "algorithms", "oop", "backend development"],
-        "tools": ["git", "docker", "kubernetes", "vscode", "jenkins"],
-        "domain": ["software engineering", "cloud", "api design"],
-        "education": ["btech", "mtech", "b.e", "b.sc computer science"]
+    ("admin", "executive"): {
+        "skills": ["coordination", "scheduling", "facility"],
+        "tools": ["excel"],
+        "domain": ["admin operations"],
+        "education": ["graduate"]
     },
-    ("hr", "L2"): {
-        "skills": ["recruitment", "employee relations", "onboarding", "exit interviews"],
-        "tools": ["excel", "workday", "successfactors"],
-        "domain": ["human resources", "people operations"],
-        "education": ["mba hr", "pgdm", "bba hr"]
+    ("b2b", "senior executive"): {
+        "skills": ["partner management", "negotiation", "relationship building"],
+        "tools": ["crm", "excel"],
+        "domain": ["b2b sales", "enterprise"],
+        "education": ["bba", "mba"]
     },
-    ("marketing", "L1"): {
-        "skills": ["content creation", "campaign execution", "brand communication"],
-        "tools": ["canva", "google ads", "meta business suite"],
-        "domain": ["digital marketing", "performance marketing"],
-        "education": ["bba", "mba marketing"]
-    }
-    # Extend with more roles as needed
+    ("b2c", "am"): {
+        "skills": ["telecalling", "lead conversion", "customer handling"],
+        "tools": ["dialer", "crm"],
+        "domain": ["direct sales", "b2c"],
+        "education": ["bcom", "graduate"]
+    },
+    ("human resources", "vp"): {
+        "skills": ["hr strategy", "org design", "policy making"],
+        "tools": ["workday", "successfactors"],
+        "domain": ["hr leadership"],
+        "education": ["mba hr"]
+    },
+    ("technology", "sm"): {
+        "skills": ["backend", "architecture", "design patterns"],
+        "tools": ["java", "docker", "aws"],
+        "domain": ["software engineering"],
+        "education": ["btech", "mtech"]
+    },
+    # Add more department-level entries as required
 }
 
-# --- Expand synonyms ---
+# --- Helper: expand synonyms ---
 def expand_keywords(keywords):
     expanded = set()
-    for kw in keywords:
-        kw = kw.strip().lower()
-        expanded.add(kw)
-        if kw in SYNONYMS:
-            expanded.update(SYNONYMS[kw])
+    for word in keywords:
+        word = word.lower().strip()
+        expanded.add(word)
+        if word in SYNONYMS:
+            expanded.update(SYNONYMS[word])
     return list(expanded)
 
-# --- Return profile keyword sets by (dept, level) ---
-def get_profile_keywords(dept, level):
-    key = (dept.lower(), level.upper())
-    role = ROLE_KEYWORDS.get(key, {})
+# --- Get expanded profile keyword set ---
+def get_profile_keywords(department, level):
+    key = (department.lower(), level.strip())
+    keywords = ROLE_KEYWORDS.get(key, {})
     return {
-        field: expand_keywords(role.get(field, []))
-        for field in ["skills", "tools", "domain", "education"]
+        field: expand_keywords(keywords.get(field, [])) for field in ["skills", "tools", "domain", "education"]
     }
 
-# --- Clean keyword list from JD/CV text ---
+# --- Extract loose keywords from parsed text ---
 def extract_keywords_from_text(text):
     words = re.split(r"[,\n;/\-–\| ]+", text)
-    return [w.strip().lower() for w in words if len(w.strip()) > 2]
+    return {
+        "skills": [w.strip().lower() for w in words if len(w.strip()) > 2],
+        "tools": [],
+        "domain": [],
+        "education": []
+    }
