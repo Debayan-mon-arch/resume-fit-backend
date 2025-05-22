@@ -2,7 +2,7 @@ import fitz
 from docx import Document
 import re
 
-# --- PDF & DOCX text extractor ---
+# --- PDF/DOCX Text Extraction ---
 def extract_text(file_storage):
     try:
         filename = file_storage.filename.lower()
@@ -17,12 +17,17 @@ def extract_text(file_storage):
             file_storage.stream.seek(0)
             doc = Document(file_storage)
             text = " ".join(p.text for p in doc.paragraphs)
-        return text.replace("\n", " ").strip().lower()
+        return remove_preamble(text.replace("\n", " ").strip().lower())
     except Exception as e:
         print(f"Error extracting text: {e}")
         return ""
 
-# --- Synonym bank ---
+# --- Optional: Remove intro sections from JD ---
+def remove_preamble(text):
+    match = re.search(r"(role\s*:|responsibilities|position|job description)", text, re.IGNORECASE)
+    return text[match.start():] if match else text
+
+# --- Synonym Bank ---
 SYNONYMS = {
     "python": ["py", "python3", "scripting"],
     "git": ["gitlab", "github"],
@@ -47,66 +52,73 @@ SYNONYMS = {
     "marketing": ["campaign", "branding", "seo"],
     "product": ["ux", "roadmap", "feature"]
 }
-
-# --- Department + Level mapping to core keywords ---
+# --- Role Keyword Mapping by (Department, Level) ---
 ROLE_KEYWORDS = {
-    ("admin", "executive"): {
-        "skills": ["coordination", "scheduling", "facility"],
-        "tools": ["excel"],
-        "domain": ["admin operations"],
-        "education": ["graduate"]
+    ("tech", "l3"): {
+        "skills": ["python", "java", "data structures", "algorithms"],
+        "tools": ["git", "docker", "vscode"],
+        "domain": ["software engineering", "cloud"],
+        "education": ["btech", "mtech", "b.e", "b.sc computer science"]
+    },
+    ("hr", "l2"): {
+        "skills": ["recruitment", "employee relations", "onboarding"],
+        "tools": ["excel", "workday"],
+        "domain": ["human resources", "people operations"],
+        "education": ["mba hr", "pgdm", "bba hr"]
+    },
+    ("marketing", "l1"): {
+        "skills": ["content creation", "campaign execution"],
+        "tools": ["canva", "google ads"],
+        "domain": ["digital marketing"],
+        "education": ["bba", "mba marketing"]
     },
     ("b2b", "senior executive"): {
-        "skills": ["partner management", "negotiation", "relationship building"],
-        "tools": ["crm", "excel"],
-        "domain": ["b2b sales", "enterprise"],
-        "education": ["bba", "mba"]
+        "skills": ["negotiation", "partner onboarding"],
+        "tools": ["excel", "crm"],
+        "domain": ["sales", "distribution"],
+        "education": ["bcom", "mba"]
     },
     ("b2c", "am"): {
-        "skills": ["telecalling", "lead conversion", "customer handling"],
-        "tools": ["dialer", "crm"],
-        "domain": ["direct sales", "b2c"],
-        "education": ["bcom", "graduate"]
-    },
-    ("human resources", "vp"): {
-        "skills": ["hr strategy", "org design", "policy making"],
-        "tools": ["workday", "successfactors"],
-        "domain": ["hr leadership"],
-        "education": ["mba hr"]
-    },
-    ("technology", "sm"): {
-        "skills": ["backend", "architecture", "design patterns"],
-        "tools": ["java", "docker", "aws"],
-        "domain": ["software engineering"],
-        "education": ["btech", "mtech"]
-    },
-    # Add more department-level entries as required
+        "skills": ["telecalling", "lead conversion", "inside sales"],
+        "tools": ["dialer", "lead square", "excel"],
+        "domain": ["b2c", "d2c"],
+        "education": ["graduate", "bba"]
+    }
+    # Add more department-level mappings as needed
 }
 
-# --- Helper: expand synonyms ---
+# --- Expand Synonyms for Matching ---
 def expand_keywords(keywords):
     expanded = set()
-    for word in keywords:
-        word = word.lower().strip()
-        expanded.add(word)
-        if word in SYNONYMS:
-            expanded.update(SYNONYMS[word])
+    for kw in keywords:
+        kw = kw.strip().lower()
+        expanded.add(kw)
+        if kw in SYNONYMS:
+            expanded.update(SYNONYMS[kw])
     return list(expanded)
 
-# --- Get expanded profile keyword set ---
-def get_profile_keywords(department, level):
-    key = (department.lower(), level.strip())
+# --- Get Role-specific Keywords by Dept + Level ---
+def get_profile_keywords(dept, level):
+    key = (dept.lower(), level.lower())
     keywords = ROLE_KEYWORDS.get(key, {})
     return {
-        field: expand_keywords(keywords.get(field, [])) for field in ["skills", "tools", "domain", "education"]
+        field: expand_keywords(keywords.get(field, []))
+        for field in ["skills", "tools", "domain", "education"]
     }
 
-# --- Extract loose keywords from parsed text ---
+# --- Classify Text into Skills, Tools, Domain, Education ---
 def extract_keywords_from_text(text):
     words = re.split(r"[,\n;/\-–\| ]+", text)
-    return {
-        "skills": [w.strip().lower() for w in words if len(w.strip()) > 2],
-        "tools": [],
-        "domain": [],
-        "education": []
-    }
+    words = [w.strip().lower() for w in words if len(w.strip()) > 2]
+
+    categories = {"skills": [], "tools": [], "domain": [], "education": []}
+    for word in words:
+        if word in ["excel", "powerbi", "tableau", "jira", "github", "vscode", "crm", "canva"]:
+            categories["tools"].append(word)
+        elif word in ["b2b", "b2c", "insurance", "banking", "hr", "marketing", "supply", "reinsurance", "compliance"]:
+            categories["domain"].append(word)
+        elif word in ["mba", "btech", "bba", "pgdm", "graduate", "ssc", "hsc", "12th", "10th"]:
+            categories["education"].append(word)
+        else:
+            categories["skills"].append(word)
+    return categories
