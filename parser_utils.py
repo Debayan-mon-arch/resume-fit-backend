@@ -1,5 +1,6 @@
 import fitz
 from docx import Document
+import re
 
 # --- PDF & DOCX text extractor ---
 def extract_text(file_storage):
@@ -21,7 +22,20 @@ def extract_text(file_storage):
         print(f"Error extracting text: {e}")
         return ""
 
-# --- Synonym-mapped profile keywords ---
+# --- Synonym bank ---
+SYNONYMS = {
+    "python": ["py", "python3", "scripting"],
+    "git": ["gitlab", "github"],
+    "docker": ["containers"],
+    "cloud": ["aws", "azure", "gcp", "cloud infra"],
+    "recruitment": ["talent acquisition", "hiring"],
+    "employee relations": ["grievance", "hrbp"],
+    "content creation": ["copywriting", "social content", "posts", "reels"],
+    "performance marketing": ["paid ads", "ppc", "media buying"],
+    "campaign execution": ["campaign mgmt", "brand activation"]
+}
+
+# --- Keyword dictionary by (Dept, Level) ---
 ROLE_KEYWORDS = {
     ("tech", "L3"): {
         "skills": ["python", "java", "data structures", "algorithms", "oop", "backend development"],
@@ -41,24 +55,10 @@ ROLE_KEYWORDS = {
         "domain": ["digital marketing", "performance marketing"],
         "education": ["bba", "mba marketing"]
     }
-    # Add more (dept, level) mappings as needed
+    # Extend with more roles as needed
 }
 
-# --- Synonym bank ---
-SYNONYMS = {
-    "python": ["py", "python3", "scripting"],
-    "git": ["gitlab", "github"],
-    "docker": ["containers"],
-    "cloud": ["aws", "azure", "gcp", "cloud infra"],
-    "recruitment": ["talent acquisition", "hiring"],
-    "employee relations": ["grievance", "hrbp"],
-    "content creation": ["copywriting", "social content", "posts", "reels"],
-    "performance marketing": ["paid ads", "ppc", "media buying"],
-    "campaign execution": ["campaign mgmt", "brand activation"]
-}
-import re
-
-# --- Helper: expand synonyms into flat list ---
+# --- Expand synonyms ---
 def expand_keywords(keywords):
     expanded = set()
     for kw in keywords:
@@ -68,7 +68,7 @@ def expand_keywords(keywords):
             expanded.update(SYNONYMS[kw])
     return list(expanded)
 
-# --- Extract profile keywords by dept + level ---
+# --- Return profile keyword sets by (dept, level) ---
 def get_profile_keywords(dept, level):
     key = (dept.lower(), level.upper())
     role = ROLE_KEYWORDS.get(key, {})
@@ -77,7 +77,7 @@ def get_profile_keywords(dept, level):
         for field in ["skills", "tools", "domain", "education"]
     }
 
-# --- Extract keywords from CV/JD text if needed ---
+# --- Clean keyword list from JD/CV text ---
 def extract_keywords_from_text(text):
     words = re.split(r"[,\n;/\-–\| ]+", text)
     return [w.strip().lower() for w in words if len(w.strip()) > 2]
