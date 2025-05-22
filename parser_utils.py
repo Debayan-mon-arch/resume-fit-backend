@@ -17,15 +17,10 @@ def extract_text(file_storage):
             file_storage.stream.seek(0)
             doc = Document(file_storage)
             text = " ".join(p.text for p in doc.paragraphs)
-        return remove_preamble(text.replace("\n", " ").strip().lower())
+        return text.replace("\n", " ").strip().lower()
     except Exception as e:
         print(f"Error extracting text: {e}")
         return ""
-
-# --- Optional: Remove intro sections from JD ---
-def remove_preamble(text):
-    match = re.search(r"(role\s*:|responsibilities|position|job description)", text, re.IGNORECASE)
-    return text[match.start():] if match else text
 
 # --- Synonym Bank ---
 SYNONYMS = {
@@ -83,11 +78,11 @@ ROLE_KEYWORDS = {
         "tools": ["dialer", "lead square", "excel"],
         "domain": ["b2c", "d2c"],
         "education": ["graduate", "bba"]
-    }
-    # Add more department-level mappings as needed
+    },
+    # Add more mappings as needed
 }
 
-# --- Expand Synonyms for Matching ---
+# --- Helper: Expand keywords using synonyms ---
 def expand_keywords(keywords):
     expanded = set()
     for kw in keywords:
@@ -97,28 +92,22 @@ def expand_keywords(keywords):
             expanded.update(SYNONYMS[kw])
     return list(expanded)
 
-# --- Get Role-specific Keywords by Dept + Level ---
+# --- Get mapped keywords for a role ---
 def get_profile_keywords(dept, level):
     key = (dept.lower(), level.lower())
-    keywords = ROLE_KEYWORDS.get(key, {})
+    role = ROLE_KEYWORDS.get(key, {})
     return {
-        field: expand_keywords(keywords.get(field, []))
+        field: expand_keywords(role.get(field, []))
         for field in ["skills", "tools", "domain", "education"]
     }
 
-# --- Classify Text into Skills, Tools, Domain, Education ---
+# --- Extract keywords from unstructured text (JD/CV) ---
 def extract_keywords_from_text(text):
     words = re.split(r"[,\n;/\-–\| ]+", text)
-    words = [w.strip().lower() for w in words if len(w.strip()) > 2]
-
-    categories = {"skills": [], "tools": [], "domain": [], "education": []}
-    for word in words:
-        if word in ["excel", "powerbi", "tableau", "jira", "github", "vscode", "crm", "canva"]:
-            categories["tools"].append(word)
-        elif word in ["b2b", "b2c", "insurance", "banking", "hr", "marketing", "supply", "reinsurance", "compliance"]:
-            categories["domain"].append(word)
-        elif word in ["mba", "btech", "bba", "pgdm", "graduate", "ssc", "hsc", "12th", "10th"]:
-            categories["education"].append(word)
-        else:
-            categories["skills"].append(word)
-    return categories
+    cleaned = [w.strip().lower() for w in words if len(w.strip()) > 2]
+    return {
+        "skills": cleaned,
+        "tools": [],
+        "domain": [],
+        "education": []
+    }
