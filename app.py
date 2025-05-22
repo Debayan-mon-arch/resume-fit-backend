@@ -5,19 +5,19 @@ from parser_utils import extract_text, extract_keywords_from_text, get_profile_k
 app = Flask(__name__)
 CORS(app)
 
-# Matching weights
+# Sectional weight distribution
 WEIGHTS = {
-    "section1": 40,  # Department + Level keyword match
-    "section2": 20,  # Critical skills match
-    "section3": 40   # JD vs CV keyword match
+    "section1": 40,  # Dept + Level
+    "section2": 20,  # Critical Skills
+    "section3": 40   # JD vs CV
 }
 
-def match_score(base, target):
+def soft_match_score(base, target):
     base_set = set(expand_keywords(base))
     target_set = set(expand_keywords(target))
-    matched = base_set & target_set
-    score = round((len(matched) / len(base_set)) * 100) if base_set else 0
-    return score, list(matched)
+    matches = [kw for kw in base_set if any(kw in tgt for tgt in target_set)]
+    score = round((len(matches) / len(base_set)) * 100) if base_set else 0
+    return score, matches
 
 @app.route('/parse', methods=['POST'])
 def parse():
@@ -26,9 +26,9 @@ def parse():
         level = request.form.get("level")
         priority_skills = request.form.get("priority_skills", "").split(",")
         jd_file = request.files.get("jd")
-        cvs = request.files.getlist("cvs")
+        cv_files = request.files.getlist("cvs")
 
-        if not dept or not level or not jd_file or not cvs:
+        if not dept or not level or not jd_file or not cv_files:
             return jsonify({"error": "Missing inputs"}), 400
 
         jd_text = extract_text(jd_file)
@@ -37,23 +37,22 @@ def parse():
         role_keywords = get_profile_keywords(dept, level)
 
         results = []
-        for f in cvs:
+        for f in cv_files:
             cv_text = extract_text(f)
             cv_keywords = extract_keywords_from_text(cv_text)
 
-            # Section 1: Dept+Level Match
-            s1_score, _ = match_score(
+            # SECTION 1: Role Match
+            s1_score, _ = soft_match_score(
                 role_keywords['skills'] + role_keywords['tools'] + role_keywords['domain'] + role_keywords['education'],
                 cv_keywords['skills'] + cv_keywords['tools'] + cv_keywords['domain'] + cv_keywords['education']
             )
 
-            # Section 2: Priority Skills Match
-            s2_score, matched_priorities = match_score(priority_skills, cv_keywords['skills'])
+            # SECTION 2: Priority Skills
+            s2_score, matched_priority = soft_match_score(priority_skills, cv_keywords['skills'])
 
-            # Section 3: JD Keyword Match
-            s3_score, top_keywords = match_score(jd_keywords['skills'], cv_keywords['skills'])
+            # SECTION 3: JD vs CV
+            s3_score, top_keywords = soft_match_score(jd_keywords['skills'], cv_keywords['skills'])
 
-            # Final Weighted Score
             final = round(
                 (s1_score * WEIGHTS["section1"] +
                  s2_score * WEIGHTS["section2"] +
@@ -76,14 +75,14 @@ def parse():
                 "section3_score": s3_score,
                 "score": final,
                 "label": label,
-                "priority": ", ".join(matched_priorities),
-                "top_keywords": top_keywords
+                "priority": ", ".join(matched_priority),
+                "top_keywords": top_keywords  # hidden from frontend table but available for CSV
             })
 
         return jsonify({"results": results})
     except Exception as e:
         print("Error:", e)
-        return jsonify({"error": "Something went wrong"}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=10000)
