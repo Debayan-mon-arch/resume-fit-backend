@@ -5,123 +5,93 @@ from parser_utils import extract_text, get_profile_keywords, extract_keywords_fr
 app = Flask(__name__)
 CORS(app)
 
-# --- Scoring logic ---
-def calculate_match(jd, cv, priority_keywords=None):
-    base_weights = {
-        "skills": 3,
-        "domain": 2,
-        "tools": 2,
-        "education": 1,
-        "experience": 0.5,
-        "joining": 0.5,
-        "age": 0.5,
-        "gender": 0.25,
-        "graduate": 0.25
-    }
+# Weighted scoring per section
+SECTION_WEIGHTS = {
+    "section1": 0.40,
+    "section2": 0.20,
+    "section3": 0.40
+}
 
-    score = 0
-    total_weight = 0
-    matched_fields = {}
+def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_keywords):
+    # SECTION 1: Profile keywords match
+    profile_score = sum(1 for field in ["skills", "domain", "tools", "education"]
+                        if any(k in cv_keywords for k in profile_keywords.get(field, [])))
+    section1 = (profile_score / 4) * 100  # out of 100
 
-    for field, weight in base_weights.items():
-        jd_val = jd.get(field)
-        cv_val = cv.get(field)
-
-        if jd_val in [None, "", []] or cv_val in [None, "", []]:
-            continue
-
-        if isinstance(jd_val, list) and isinstance(cv_val, list):
-            jd_set = set(jd_val)
-            cv_set = set(cv_val)
-            matches = {j for j in jd_set if any(j in c or c in j for c in cv_set)}
-            match_ratio = len(matches) / len(jd_set) if jd_set else 0
-            matched_fields[field] = list(matches)
-        elif isinstance(jd_val, int) and isinstance(cv_val, int):
-            match_ratio = 1 if abs(jd_val - cv_val) <= 2 else 0
-            matched_fields[field] = [str(cv_val)] if match_ratio else []
-        else:
-            match_ratio = 1 if str(jd_val).lower() == str(cv_val).lower() else 0
-            matched_fields[field] = [str(cv_val)] if match_ratio else []
-
-        score += match_ratio * weight
-        total_weight += weight
-
-    # --- Priority skill boost ---
+    # SECTION 2: Priority skills match
     matched_priority = []
+    priority_score = 0
     if priority_keywords:
-        cv_blob = " ".join(" ".join(cv.get(f, [])) if isinstance(cv.get(f), list) else str(cv.get(f)) for f in jd)
-        for kw in priority_keywords:
-            if kw in cv_blob:
-                score += 1.5  # moderate boost
-                total_weight += 1.5
-                matched_priority.append(kw)
+        for p in priority_keywords:
+            if p in cv_keywords:
+                matched_priority.append(p)
+        if priority_keywords:
+            priority_score = (len(matched_priority) / len(priority_keywords)) * 100
 
-    final_score = round((score / total_weight) * 100) if total_weight else 0
+    # SECTION 3: JD vs CV keywords
+    overlap = set(jd_keywords) & set(cv_keywords)
+    jd_score = (len(overlap) / len(set(jd_keywords))) * 100 if jd_keywords else 0
+    section3 = jd_score
 
-    if final_score >= 80:
+    # Weighted score
+    total_score = round(
+        section1 * SECTION_WEIGHTS["section1"] +
+        priority_score * SECTION_WEIGHTS["section2"] +
+        section3 * SECTION_WEIGHTS["section3"]
+    )
+
+    # Label
+    if total_score >= 80:
         label = "✅ Best Fit"
-    elif final_score >= 60:
+    elif total_score >= 60:
         label = "👍 Good Fit"
-    elif final_score >= 40:
+    elif total_score >= 40:
         label = "⚠️ Average Fit"
     else:
         label = "❌ Not Fit"
 
-    return final_score, label, matched_priority
+    return total_score, label, matched_priority, {
+        "section1": round(section1),
+        "section2": round(priority_score),
+        "section3": round(section3)
+    }
 
-# --- API route ---
-@app.route('/parse', methods=['POST'])
+@app.route("/parse", methods=["POST"])
 def parse():
     try:
         dept = request.form.get("dept", "").lower()
         level = request.form.get("level", "").upper()
+        priority_raw = request.form.get("prioritySkill", "")
+        priority_keywords = [p.strip().lower() for p in priority_raw.split(",") if p.strip()]
+
         jd_file = request.files.get("jd")
         cv_files = request.files.getlist("cvs")
 
         if not jd_file or not cv_files:
             return jsonify({"error": "JD and CVs required"}), 400
 
+        # Extract text from JD
         jd_text = extract_text(jd_file)
-        jd_extracted = extract_keywords_from_text(jd_text)
+        jd_keywords = extract_keywords_from_text(jd_text)
+
+        # Profile keywords from dept+level
         profile_keywords = get_profile_keywords(dept, level)
-
-        jd = {
-            "skills": profile_keywords["skills"] + jd_extracted,
-            "domain": profile_keywords["domain"] + jd_extracted,
-            "tools": profile_keywords["tools"] + jd_extracted,
-            "education": profile_keywords["education"] + jd_extracted,
-            "experience": int(request.form.get("experience")) if request.form.get("experience") else None,
-            "joining": request.form.get("joining"),
-            "age": int(request.form.get("age")) if request.form.get("age") else None,
-            "gender": request.form.get("gender"),
-            "graduate": request.form.get("graduate")
-        }
-
-        priority_raw = request.form.get("prioritySkill", "")
-        priority_keywords = [p.strip().lower() for p in priority_raw.split(",") if p.strip()]
 
         results = []
         for file in cv_files:
             cv_text = extract_text(file)
             cv_keywords = extract_keywords_from_text(cv_text)
-            cv = {
-                "skills": cv_keywords,
-                "domain": cv_keywords,
-                "tools": cv_keywords,
-                "education": cv_keywords,
-                "experience": jd["experience"],
-                "joining": jd["joining"],
-                "age": jd["age"],
-                "gender": jd["gender"],
-                "graduate": jd["graduate"]
-            }
 
-            score, label, matched_priority = calculate_match(jd, cv, priority_keywords)
+            score, label, matched_priority, section_scores = calculate_match(
+                jd_keywords, cv_keywords, profile_keywords, priority_keywords
+            )
+
             results.append({
                 "cv": file.filename,
                 "score": score,
                 "label": label,
-                "matched_priority": ", ".join(matched_priority) if matched_priority else ""
+                "matched_priority": ", ".join(matched_priority) if matched_priority else "",
+                "section_scores": section_scores
             })
 
         return jsonify({"results": results})
@@ -129,5 +99,5 @@ def parse():
         print("Error:", e)
         return jsonify({"error": "Internal server error"}), 500
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
