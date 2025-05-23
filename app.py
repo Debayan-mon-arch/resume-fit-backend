@@ -31,9 +31,21 @@ def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills,
         section2_score = round(match_ratio * 100)
         priority_matched = list(set(priority) & cv_skills)
 
-    # --- Section 3: JD–CV Keyword Match ---
-    jd_terms = set(jd_keywords.get("skills", []))
-    cv_terms = set(cv_keywords.get("skills", []))
+    # --- Section 3: JD–CV full field match ---
+    jd_terms = set(
+        jd_keywords.get("skills", []) +
+        jd_keywords.get("tools", []) +
+        jd_keywords.get("domain", []) +
+        jd_keywords.get("education", [])
+    )
+
+    cv_terms = set(
+        cv_keywords.get("skills", []) +
+        cv_keywords.get("tools", []) +
+        cv_keywords.get("domain", []) +
+        cv_keywords.get("education", [])
+    )
+
     match_terms = jd_terms & cv_terms
     section3_score = round(len(match_terms) / len(jd_terms) * 100) if jd_terms else 0
 
@@ -95,10 +107,10 @@ def parse():
             cv_keywords = extract_keywords_from_text(cv_text)
 
             cv_data = {
-                "skills": cv_keywords["skills"],
-                "tools": [],
-                "domain": [],
-                "education": []
+                "skills": cv_keywords.get("skills", []),
+                "tools": cv_keywords.get("tools", []),
+                "domain": cv_keywords.get("domain", []),
+                "education": cv_keywords.get("education", [])
             }
 
             match = calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills, cv_data)
