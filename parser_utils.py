@@ -22,6 +22,7 @@ def extract_text(file_storage):
         print(f"Error extracting text: {e}")
         return ""
 
+
 # --- Synonym Bank ---
 SYNONYMS = {
     "python": ["py", "python3", "scripting", "backend scripting"],
@@ -272,24 +273,31 @@ def get_profile_keywords(dept, level):
         for field in ["skills", "tools", "domain", "education"]
     }
 
+# --- Helper: Match full phrases from text ---
+def match_phrases_from_text(text, phrases):
+    text_lower = text.lower()
+    matched = set()
+    for phrase in phrases:
+        pattern = r'\b' + re.escape(phrase.lower()) + r'\b'
+        if re.search(pattern, text_lower):
+            matched.add(phrase)
+    return list(matched)
+
 # --- Extract keywords from JD or CV (text blob) ---
 def extract_keywords_from_text(text):
     words = re.split(r"[,\n;/\-–\| ]+", text)
     filtered = [w.strip().lower() for w in words if len(w.strip()) > 2]
 
-    # Phrase-aware matching
     all_phrases = set()
     for role in ROLE_KEYWORDS.values():
         for field in ["skills", "tools", "domain", "education"]:
             all_phrases.update(role.get(field, []))
 
-    # Flatten synonyms too
     for k, syns in SYNONYMS.items():
         all_phrases.add(k)
         all_phrases.update(syns)
 
     matched_phrases = match_phrases_from_text(text, all_phrases)
-
     combined = list(set(filtered + matched_phrases))
 
     return {
@@ -298,14 +306,3 @@ def extract_keywords_from_text(text):
         "domain": combined,
         "education": combined
     }
-
-# --- Helper: Match full phrases from text ---
-def match_phrases_from_text(text, phrases):
-    text_lower = text.lower()
-    matched = set()
-    for phrase in phrases:
-        # Match full phrase using word boundaries
-        pattern = r'\b' + re.escape(phrase.lower()) + r'\b'
-        if re.search(pattern, text_lower):
-            matched.add(phrase)
-    return list(matched)
