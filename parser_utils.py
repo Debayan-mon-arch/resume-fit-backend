@@ -138,7 +138,7 @@ ROLE_KEYWORDS = {
         "tools": ["dialer", "leadsquared", "zoho crm", "excel", "call recorder", "outlook", "freshdesk", "aircall", "salesforce", "sms blast"],
         "domain": ["inbound sales", "tele-sales", "consumer onboarding", "support transition", "b2c funnel", "retention", "direct sales", "field conversion", "d2c", "post-sale services"],
         "education": ["graduate", "bba", "ba", "bcom", "bca", "pg diploma", "mba", "diploma in sales", "mass comm", "bmm"]
-    }
+    },
     ("product", "am"): {
         "skills": ["product roadmap", "design thinking", "user stories", "a/b testing", "backlog grooming", "agile sprint", "requirement gathering", "feature planning", "customer feedback", "go-live mgmt"],
         "tools": ["jira", "figma", "trello", "notion", "miro", "postman", "slack", "google analytics", "excel", "ppt"],
@@ -180,7 +180,7 @@ ROLE_KEYWORDS = {
         "tools": ["zendesk", "crm", "freshdesk", "google forms", "call center tech", "email tools", "dashboard", "excel", "ppt", "confluence"],
         "domain": ["cx", "service quality", "issue resolution", "escalation handling", "retention", "customer support", "process improvement", "cx strategy", "client mgmt", "csat"],
         "education": ["mba", "bba", "graduate", "pgdm", "msc quality", "mba ops", "msc analytics", "bcom", "bms", "mba marketing"]
-    }
+    },
     ("learning & development", "am"): {
         "skills": ["training delivery", "learning need analysis", "e-learning", "program facilitation", "capability building", "content creation", "training calendar", "feedback analysis", "coaching", "talent development"],
         "tools": ["lms", "ppt", "excel", "google classroom", "zoom", "teams", "slido", "google forms", "moodle", "email"],
@@ -222,7 +222,7 @@ ROLE_KEYWORDS = {
         "tools": ["figma", "jira", "miro", "confluence", "ppt", "excel", "powerbi", "notion", "trello", "productboard"],
         "domain": ["product strategy", "platform mgmt", "product lifecycle", "customer centric design", "saas product", "enterprise product", "mvp", "innovation mgmt", "agile", "market fit"],
         "education": ["mba", "btech", "mba pm", "mba strategy", "msc product", "mba tech", "ba", "bdes", "mba marketing", "mba it"]
-    }
+    },
     ("insurer relation", "manager"): {
         "skills": ["insurer onboarding", "pricing negotiation", "sla management", "relationship handling", "claim coordination", "renewal support", "data exchange", "regulatory liaison", "underwriting support", "product filing"],
         "tools": ["crm", "excel", "policy admin system", "email", "ppt", "reporting tools", "ms office", "google sheets", "jira", "dashboard"],
