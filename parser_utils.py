@@ -59,7 +59,7 @@ SYNONYMS = {
     "vendor management": ["supplier mgmt", "third party", "procurement"],
     "forecasting": ["prediction", "modeling", "trend analysis"],
     "insurance": ["policy", "claim", "premium", "underwriting"],
-    "cx": ["customer experience", "nps", "feedback", "csat"]
+    "cx": ["customer experience", "nps", "feedback", "csat"],
     "lms": ["learning system", "elearning", "online courses"],
     "dashboarding": ["visualization", "reporting", "kpi tracker"],
     "automation": ["bots", "scripts", "workflow tools", "rpa"],
