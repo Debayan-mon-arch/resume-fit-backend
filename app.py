@@ -51,9 +51,9 @@ def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills,
 
     # --- Weight adjustment logic ---
     if priority:
-        weight_1, weight_2, weight_3 = 40, 20, 40
+        weight_1, weight_2, weight_3 = 20, 10, 70
     else:
-        weight_1, weight_2, weight_3 = 40, 0, 60
+        weight_1, weight_2, weight_3 = 20, 0, 80
 
     # --- Final score ---
     score = round(
