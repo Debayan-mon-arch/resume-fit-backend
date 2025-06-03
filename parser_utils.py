@@ -1,26 +1,52 @@
-import fitz
+import fitz  # PyMuPDF
 from docx import Document
 import re
 
-# --- PDF/DOCX Text Extraction ---
-def extract_text(file_storage):
+# --- Main unified function ---
+def extract_text(file):
     try:
-        filename = file_storage.filename.lower()
-        text = ""
+        filename = file.filename.lower()
         if filename.endswith(".pdf"):
-            file_storage.stream.seek(0)
-            doc = fitz.open(stream=file_storage.read(), filetype="pdf")
-            for page in doc:
-                text += page.get_text()
-            doc.close()
+            file.stream.seek(0)
+            return extract_relevant_text_from_pdf(file).replace("\n", " ").strip().lower()
         elif filename.endswith(".docx"):
-            file_storage.stream.seek(0)
-            doc = Document(file_storage)
-            text = " ".join(p.text for p in doc.paragraphs)
-        return text.replace("\n", " ").strip().lower()
+            file.stream.seek(0)
+            return extract_relevant_text_from_docx(file).replace("\n", " ").strip().lower()
+        else:
+            return file.read().decode("utf-8", errors="ignore").replace("\n", " ").strip().lower()
     except Exception as e:
         print(f"Error extracting text: {e}")
         return ""
+
+# --- Trim to relevant JD content ---
+def trim_to_relevant_section(text):
+    triggers = [
+        "role title", "roles and responsibilities", "responsibilities",
+        "job description", "about the role", "role overview",
+        "key responsibilities", "key skills and qualifications",
+        "educational qualifications", "experience"
+    ]
+    lower_text = text.lower()
+    for trigger in triggers:
+        idx = lower_text.find(trigger)
+        if idx != -1:
+            return text[idx:]
+    return text  # fallback if no match
+
+# --- PDF ---
+def extract_relevant_text_from_pdf(file):
+    text = ""
+    doc = fitz.open("pdf", file.read())
+    for page in doc:
+        text += page.get_text()
+    doc.close()
+    return trim_to_relevant_section(text)
+
+# --- DOCX ---
+def extract_relevant_text_from_docx(file):
+    doc = Document(file)
+    text = "\n".join([para.text for para in doc.paragraphs])
+    return trim_to_relevant_section(text)
 
 # --- Synonym Bank ---
 SYNONYMS = {
