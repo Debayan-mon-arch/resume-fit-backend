@@ -5,7 +5,7 @@ from docx import Document
 from parser_utils import extract_text, extract_keywords_from_text, get_profile_keywords
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://debayan-mon-arch.github.io", "https://debayan-mon-arch.github.io/resume-fit-frontend/"])
 
 def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills, cv_data):
     # --- Section 1: Department & Level keyword match ---
