@@ -829,49 +829,42 @@ def get_profile_keywords(dept, level):
     }
 
 def extract_keywords_from_text(text):
-    from nltk.corpus import stopwords
-    from nltk.tokenize import word_tokenize
-    import string
+    words = re.split(r"[,\n;/\-–\| ]+", text)
+    filtered = [w.strip().lower() for w in words if len(w.strip()) > 2]
+    
+    STOP_WORDS = set([
+    "the", "and", "for", "with", "from", "that", "this", "your", "have",
+    "will", "are", "was", "were", "you", "has", "had", "but", "not", "any",
+    "per", "our", "their", "his", "her", "each", "all", "other", "such", "etc"
+])
 
-    download('punkt')
-    download('stopwords')
+    filtered = [w for w in filtered if w not in STOP_WORDS]
 
-    stop_words = set(stopwords.words('english'))
-    text = text.lower()
-    tokens = word_tokenize(text)
-    tokens = [t for t in tokens if t not in stop_words and t not in string.punctuation]
+    # Phrase-aware matching
+    all_phrases = set()
+    for role in ROLE_KEYWORDS.values():
+        for field in ["skills", "tools", "domain", "education"]:
+            all_phrases.update(role.get(field, []))
 
-    keywords = {
-        "skills": [],
-        "tools": [],
-        "domain": [],
-        "education": []
+    for k, syns in SYNONYMS.items():
+        all_phrases.add(k)
+        all_phrases.update(syns)
+
+    matched_phrases = match_phrases_from_text(text, all_phrases)
+
+    # ⚠️ Add synonyms of matched terms too
+    expanded = set(matched_phrases)
+    for term in matched_phrases:
+        expanded.update(SYNONYMS.get(term, []))
+
+    combined = list(set(filtered + list(expanded)))
+
+    return {
+        "skills": combined,
+        "tools": combined,
+        "domain": combined,
+        "education": combined
     }
-
-    all_phrases = []
-    for field in ROLE_KEYWORDS:
-        for item in ROLE_KEYWORDS[field]:
-            all_phrases.extend(item)
-
-    all_phrases = list(set(all_phrases))  # remove duplicates
-
-    for phrase in all_phrases:
-        if phrase in text:
-            for field in ROLE_KEYWORDS:
-                for item in ROLE_KEYWORDS[field]:
-                    if phrase in item:
-                        keywords[field].append(phrase)
-
-    # Add synonyms
-    for field in keywords:
-        expanded = []
-        for term in keywords[field]:
-            expanded.append(term)
-            expanded.extend(SYNONYMS.get(term, []))
-        keywords[field] = list(set(expanded))
-
-    return keywords
-
 
 # --- Helper: Match full phrases from text ---
 def match_phrases_from_text(text, phrases):
