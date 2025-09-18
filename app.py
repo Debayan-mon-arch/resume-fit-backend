@@ -62,9 +62,9 @@ def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills,
          section3_score * weight_3) / 100
     )
 
-    if score >= 80:
+    if score >= 60:
         label = "✅ Best Fit"
-    elif score >= 60:
+    elif score >= 35:
         label = "👍 Good Fit"
     elif score >= 40:
         label = "⚠️ Average Fit"
