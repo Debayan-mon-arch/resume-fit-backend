@@ -210,7 +210,7 @@ ROLE_KEYWORDS = {
             "diversity and inclusion", "employee lifecycle", "talent development", "change leadership",
             "hr transformation", "hr digitalization", "employee retention", "hr compliance", "work culture",
             "hr business partnering", "performance systems", "organizational structure", "capability building",
-            "leadership development", "hr technology", "remote workforce strategy"
+            "leadership development", "hr technology", "remote workforce strategy", "B2B", "B2C"
         ],
         "education": [
             "mba hr", "pgdm hr", "bba hr", "ma psychology", "msw", "ba sociology", "mba ob", "mba l&d",
