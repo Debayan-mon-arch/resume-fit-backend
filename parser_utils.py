@@ -198,7 +198,7 @@ ROLE_KEYWORDS = {
             "performance management", "succession planning", "grievance handling", "organizational development",
             "hr audits", "hr analytics", "employee engagement", "internal communication", "conflict resolution",
             "workforce planning", "change management", "learning and development", "retention strategy",
-            "policy creation", "benefits administration"
+            "policy creation", "benefits administration", "end-to-end hiring", "hiring", "Spearheaded", "onboarding", "key hiring metrics", "cost of hiring", "TAT", "source utilization"
         ],
         "tools": [
             "excel", "powerpoint", "workday", "successfactors", "greytHR", "zoho people", "darwinbox", "bambooHR",
