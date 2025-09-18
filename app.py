@@ -66,7 +66,7 @@ def calculate_match(jd_keywords, cv_keywords, profile_keywords, priority_skills,
         label = "✅ Best Fit"
     elif score >= 35:
         label = "👍 Good Fit"
-    elif score >= 40:
+    elif score >= 20:
         label = "⚠️ Average Fit"
     else:
         label = "❌ Not Fit"
